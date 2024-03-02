@@ -9,17 +9,22 @@ import {
   GraphQLString,
   graphql,
 } from 'graphql';
-import { Prisma, User } from '@prisma/client';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { UUIDType } from './types/uuid.js';
 import { userInterface } from './types/user.js';
 import { memberInterface } from './types/member.js';
 import { MemberId } from './types/memeberId.js';
 import { profileInterface } from './types/profile.js';
-import { FastifyInstance } from 'fastify';
 import { PostInterafase } from './types/post.js';
 import { parse, validate } from 'graphql';
 import depthLimit from 'graphql-depth-limit';
+import DataLoader from 'dataloader';
+import {
+  ResolveTree,
+  parseResolveInfo,
+  simplifyParsedResolveInfoFragmentWithType,
+} from 'graphql-parse-resolve-info';
+import { PrismaClient } from '@prisma/client';
 
 const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
   const prisma = fastify.prisma;
@@ -34,6 +39,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
     },
     async handler(req) {
       const { query, variables } = req.body;
+
       // console.log(query, variables);
 
       const Query = new GraphQLObjectType({
@@ -56,8 +62,42 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
           users: {
             type: new GraphQLList(userInterface),
             args: {},
-            resolve: () => {
-              return prisma.user.findMany();
+            resolve: async (
+              parent,
+              args,
+              context: {
+                prisma: PrismaClient;
+                loaders: WeakMap<object, DataLoader<string, unknown>>;
+                dataUsers: string[];
+              },
+              info,
+            ) => {
+              const { prisma, loaders } = context;
+              let loader = loaders.get(info.fieldNodes);
+              console.log(loaders);
+              const parsedResolveInfoFragment = parseResolveInfo(info);
+              const { fields } = simplifyParsedResolveInfoFragmentWithType(
+                parsedResolveInfoFragment as ResolveTree,
+                userInterface,
+              );
+              const fieldsKeys = Object.keys(fields);
+              if (!loader) {
+                loader = new DataLoader(async (keys) => {
+                  const fieldsKeys = keys[0].split(',');
+                  const dataUsers = await prisma.user.findMany({
+                    include: {
+                      subscribedToUser: fieldsKeys.includes('subscribedToUser'),
+                      userSubscribedTo: fieldsKeys.includes('userSubscribedTo'),
+                    },
+                  });
+                  return [dataUsers];
+                });
+                loaders.set(fieldsKeys, loader);
+              }
+              const result = loader.load(fieldsKeys.join());
+              context.dataUsers = fieldsKeys;
+              return result;
+              // return prisma.user.findMany();
             },
           },
           memberType: {
@@ -122,7 +162,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
               id: { type: new GraphQLNonNull(UUIDType) },
             },
             resolve: async (
-              parent: unknown,
+              parent,
               {
                 id,
               }: {
@@ -196,7 +236,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
                       userId: { type: GraphQLString },
                       memberTypeId: { type: MemberId },
                       isMale: { type: GraphQLBoolean },
-                      yearOfBirth: { type: GraphQLInt},
+                      yearOfBirth: { type: GraphQLInt },
                     },
                   }),
                 ),
@@ -391,6 +431,9 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
         query: Query,
         mutation: Mutation,
       });
+
+      const loaders = new WeakMap();
+
       const validationResult = validate(schema, parse(req.body.query), [depthLimit(5)]);
       if (validationResult.length) {
         return { errors: validationResult };
@@ -400,7 +443,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
         schema,
         source: query,
         variableValues: variables,
-        contextValue: { prisma },
+        contextValue: { prisma, loaders },
       });
       console.log(result);
       return result;

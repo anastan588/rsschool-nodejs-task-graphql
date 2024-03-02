@@ -4,7 +4,7 @@ import { userInterface } from './user.js';
 import { Profile } from '@prisma/client';
 import { FastifyInstance } from 'fastify';
 import { memberInterface } from './member.js';
-import { MemberTypeId } from './memeberId.js';
+import { MemberId } from './memeberId.js';
 
 export const profileInterface = new GraphQLObjectType({
   name: 'Profile',
@@ -27,6 +27,6 @@ export const profileInterface = new GraphQLObjectType({
         return member;
       },
     },
-    memberTypeId: { type: MemberTypeId },
+    memberTypeId: { type: MemberId },
   }),
 });

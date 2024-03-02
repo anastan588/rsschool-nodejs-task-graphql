@@ -14,7 +14,7 @@ import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { UUIDType } from './types/uuid.js';
 import { userInterface } from './types/user.js';
 import { memberInterface } from './types/member.js';
-import { MemberTypeId } from './types/memeberId.js';
+import { MemberId } from './types/memeberId.js';
 import { profileInterface } from './types/profile.js';
 import { FastifyInstance } from 'fastify';
 import { PostInterafase } from './types/post.js';
@@ -34,7 +34,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
     },
     async handler(req) {
       const { query, variables } = req.body;
-      console.log(query, variables);
+      // console.log(query, variables);
 
       const Query = new GraphQLObjectType({
         name: 'Query',
@@ -63,7 +63,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
           memberType: {
             type: memberInterface,
             args: {
-              id: { type: MemberTypeId },
+              id: { type: MemberId },
             },
             resolve: async (
               parent,
@@ -194,7 +194,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
                     name: 'CreateProfileInput',
                     fields: {
                       userId: { type: GraphQLString },
-                      memberTypeId: { type: MemberTypeId },
+                      memberTypeId: { type: MemberId },
                       isMale: { type: GraphQLBoolean },
                       yearOfBirth: { type: GraphQLInt},
                     },
@@ -287,7 +287,7 @@ const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
                 type: new GraphQLInputObjectType({
                   name: 'ChangeProfileInput',
                   fields: {
-                    memberTypeId: { type: MemberTypeId },
+                    memberTypeId: { type: MemberId },
                     isMale: { type: GraphQLBoolean },
                     yearOfBirth: { type: GraphQLInt },
                   },
